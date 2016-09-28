@@ -28,6 +28,15 @@ class Pricing(object):
            # empty list / not defined
            return 0
 
+# we need a function with strictly numerical inputs to pass to our decorator
+# (for now)
+def find_numerical(vcpu, ecu, memory, ssd, storage, num_drives, gpu):
+    # locals retrieves all variables in local scope; call at top of function
+    # to just get args
+    query = locals()
+    assert len(query) == 7
+    return Pricing().find(query)
+
 
 #run tests
 if __name__ == "__main__":
