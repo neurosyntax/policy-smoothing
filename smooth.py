@@ -2,7 +2,7 @@ import hashlib
 import inspect
 import numpy as np
 import os
-import train
+from learn import train
 import tensorflow as tf
 
 # take a function and return the hash value of its compiled bytecode

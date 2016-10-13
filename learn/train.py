@@ -10,8 +10,8 @@
 '''
 
 import tensorflow as tf
-import datahandler as dh
-import mlp
+from . import datahandler as dh
+from . import mlp
 
 class Trainer:
   def __init__(self, feature_iters, output_size, label, data_size=10000,
