@@ -14,7 +14,7 @@ import datahandler as dh
 import mlp
 
 class Trainer:
-  def __init__(self, data_size=10000, feature_iters, output_size, label,
+  def __init__(self, feature_iters, output_size, label, data_size=10000,
                max_cost=-1, learning_rate=0.001, training_epochs=1000,
                batch_size=100, display_step=1):
     # training parameters
