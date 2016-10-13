@@ -23,5 +23,3 @@ class Continuous:
     def __next__(self):
         # returns a value in range [lo,hi)
         return np.random.random() * (self.hi - self.lo) + self.lo
-
-
