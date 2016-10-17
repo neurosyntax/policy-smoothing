@@ -46,8 +46,9 @@ def smoothen(output_size, cache_dir='cached-nets', hash_func=sha224_hex, **range
                     feature_iters=feature_iters,
                     output_size=output_size,
                     label=func)
-            trainer.train()
-            net = trainer.getNN()
+            #trainer.train()
+            trainer.test()
+            #net = trainer.getNN()
             # save network
             # train.save(net, fname)
             def wrapper(*args):
