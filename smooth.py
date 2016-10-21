@@ -3,7 +3,6 @@ import inspect
 import numpy as np
 import os
 from learn import train
-import tensorflow as tf
 
 # take a function and return the hash value of its compiled bytecode
 def sha224_hex(func):
