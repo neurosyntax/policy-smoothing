@@ -28,7 +28,6 @@ def smoothen(output_size, cache_dir='cached-nets', hash_func=sha224_hex, **range
             utils.iterators for examples).
     """
     def smoothed(func):
-        print(func)
         # check if network for func has been cached
         fname = func.__name__ + '_' + hash_func(func)
         fname = os.path.join(cache_dir, fname)
