@@ -87,3 +87,19 @@ class Trainer:
 
   def getNN(self):
     return self.neural_net
+
+def forward_pass(neural_net, inputs, tf_placeholder):
+    """ Takes a neural net, and returns the output of a single forward pass.
+
+    Args:
+        neural_net: a matmul tensor representing the weights of the network.
+        inputs: inputs to the neural net.
+        tf_placeholder: TensorFlow placeholder representing the input
+            dimensions.
+    """
+    with tf.Session() as sess:
+        sess.run(tf.initialize_all_variables())
+        feed_dict = {tf_placeholder: inputs}
+        result = sess.run([neural_net], feed_dict=feed_dict)
+    return result[0][0]
+

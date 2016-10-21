@@ -46,19 +46,13 @@ def smoothen(output_size, cache_dir='cached-nets', hash_func=sha224_hex, **range
                     feature_iters=feature_iters,
                     output_size=output_size,
                     label=func)
+
             #trainer.train()
             trainer.test()
             #net = trainer.getNN()
             # save network
             # train.save(net, fname)
-            def wrapper(*args):
-                # TODO: this feedforward functionality should live in train
-                input_layer = np.array([args], dtype='float32')
-                feed_dict = {tf.placeholder("float"): float(arg) for arg in args}
-                with tf.Session() as sess:
-                    sess.run(tf.initialize_all_variables())
-                    result = sess.run([net], feed_dict={trainer.x: input_layer})
-                    return result[0]
-        return wrapper
+            return lambda *args: train.forward_pass(
+                    net, np.array([args],dtype='float32'), trainer.x)
     return smoothed
 
