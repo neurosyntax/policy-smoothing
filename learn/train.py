@@ -14,12 +14,16 @@ from . import datahandler as dh
 from . import mlp
 import os
 import numpy as np
+from tensorflow.python.ops import rnn, rnn_cell, seq2seq
+
 
 class Trainer:
   def __init__(self, feature_iters, output_size, label, data_size=500000,
                max_cost=-1, learning_rate=0.01, training_epochs=20,
                batch_size=100, display_step=1, delta=0.0035, save_interval=10):
     # training parameters
+    self.seq_length      = 10 # something
+    self.vocab           = 10 # 0-9 
     self.data_size       = data_size
     self.max_cost        = max_cost
     self.learning_rate   = learning_rate
@@ -38,19 +42,24 @@ class Trainer:
     # Network
     self.input_size  = self.dataset.get_input_size()
     self.output_size = self.dataset.get_output_size()
-    self.x           = tf.placeholder("float", [None, self.input_size])
-    self.y           = tf.placeholder("float", [None, self.output_size])
-    self.neural_net  = mlp.MultilayerPerceptron(self.x, self.input_size, self.output_size).getNetwork()
-    self.cost        = tf.nn.l2_loss(self.neural_net - self.y)
+    self.x           = [tf.placeholder("float", [None, self.input_size]) for t in range(seq_length)]
+    self.y           = [tf.placeholder("float", [None, self.output_size]) for t in range(seq_length)]
+    self.decoder_input = ([tf.zeros_like(x[0], dtype=np.int32, name="GO")] + x[:-1])
+    #self.neural_net  = mlp.MultilayerPerceptron(self.x, self.input_size, self.output_size).getNetwork()
+    cell = rnn_cell.BasicLSTMCell
+    cell = rnn_cell.MultiRNNCell([cell] * num_layers)
+    decoder_output, decoder_state = seq2seq.basic_rnn_seq2seq(x, decoder_input, cell)
+    self.cost        = seq2seq.sequence_loss(decoder_output, y, weights)#tf.nn.l2_loss(self.neural_net - self.y)
     self.optimizer   = tf.train.AdamOptimizer(learning_rate=self.learning_rate).minimize(self.cost)
     self.init        = tf.initialize_all_variables()
-    self.saver       = tf.train.Saver()
+    self.saver       = saver = tf.train.Saver()
 
   def train(self):
     with tf.Session() as sess:
         if os.path.exists(os.getcwd()+"/tmp/model.ckpt"):
           self.saver.restore(sess, "./tmp/model.ckpt")
-        sess.run(self.init)
+        else:
+          sess.run(self.init)
 
         # train
         for epoch in range(self.training_epochs):
@@ -87,6 +96,13 @@ class Trainer:
 
   def getNN(self):
     return self.neural_net
+
+## should load the save file and return the network
+def load(fname):
+    with tf.Session() as sess:
+      if os.path.exists(os.getcwd()+"/tmp/model.ckpt"):
+          self.saver.restore(sess, "./tmp/model.ckpt")
+
 
 def forward_pass(neural_net, inputs, tf_placeholder):
     """ Takes a neural net, and returns the output of a single forward pass.
