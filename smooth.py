@@ -30,27 +30,21 @@ def smoothen(output_size, cache_dir='cached-nets', hash_func=sha224_hex, **range
         # check if network for func has been cached
         fname = func.__name__ + '_' + hash_func(func)
         fname = os.path.join(cache_dir, fname)
-        if os.path.isfile(fname):
-            # TODO: implement saving/loading functionality.
-            raise RuntimeError("saving/loading logic not implemented yet!")
-            # net = train.load(fname)
-        else:
-            # if not, compute
-            args, _, _, _ = inspect.getargspec(func)
-            # will raise KeyError if there's an arg with an unspecified range.
-            # this is intended.
-            feature_iters = [ranges[arg] for arg in args]
-            trainer = train.Trainer(
-                    feature_iters=feature_iters,
-                    output_size=output_size,
-                    label=func)
+        if not os.path.exists(cache_dir):
+            os.makedirs(cache_dir)
+        # if not, compute
+        args, _, _, _ = inspect.getargspec(func)
+        # will raise KeyError if there's an arg with an unspecified range.
+        # this is intended.
+        feature_iters = [ranges[arg] for arg in args]
+        trainer = train.Trainer(
+                feature_iters=feature_iters,
+                output_size=output_size,
+                label=func,
+                chkpt=fname)
 
-            #trainer.train()
-            trainer.test()
-            #net = trainer.getNN()
-            # save network
-            # train.save(net, fname)
-            return lambda *args: train.forward_pass(
-                    net, np.array([args],dtype='float32'), trainer.x)
+        if not os.path.isfile(fname):
+            trainer.train()
+        return lambda *args: trainer.forward_pass(np.array([args],dtype='float32'))
     return smoothed
 

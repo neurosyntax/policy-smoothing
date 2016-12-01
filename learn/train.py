@@ -18,104 +18,88 @@ from tensorflow.python.ops import rnn, rnn_cell, seq2seq
 
 
 class Trainer:
-  def __init__(self, feature_iters, output_size, label, data_size=500000,
-               max_cost=-1, learning_rate=0.01, training_epochs=20,
-               batch_size=100, display_step=1, delta=0.0035, save_interval=10):
-    # training parameters
-    self.seq_length      = 10 # something
-    self.vocab           = 10 # 0-9 
-    self.data_size       = data_size
-    self.max_cost        = max_cost
-    self.learning_rate   = learning_rate
-    self.training_epochs = training_epochs
-    self.batch_size      = batch_size
-    self.display_step    = display_step
-    self.delta           = delta
-    self.save_interval   = save_interval
+    def __init__(self, feature_iters, output_size, label, data_size=500000,
+                 max_cost=-1, learning_rate=0.01, training_epochs=20, chkpt=None,
+                 batch_size=100, display_step=1, delta=0.0035, save_interval=-1):
+        # training parameters
+        self.seq_length      = 10 # something
+        self.vocab           = 10 # 0-9 
+        self.data_size       = data_size
+        self.max_cost        = max_cost
+        self.learning_rate   = learning_rate
+        self.training_epochs = training_epochs
+        self.batch_size      = batch_size
+        self.display_step    = display_step
+        self.delta           = delta
+        self.save_interval   = save_interval
+        self.chkpt           = chkpt
 
-    self.dataset = dh.DataHandler(
-            feature_iters=feature_iters,
-            output_size=output_size,
-            label=label,
-            batch_size=batch_size)
+        self.dataset = dh.DataHandler(
+                feature_iters=feature_iters,
+                output_size=output_size,
+                label=label,
+                batch_size=batch_size)
 
-    # Network
-    self.input_size  = self.dataset.get_input_size()
-    self.output_size = self.dataset.get_output_size()
-    self.x           = [tf.placeholder("float", [None, self.input_size]) for t in range(seq_length)]
-    self.y           = [tf.placeholder("float", [None, self.output_size]) for t in range(seq_length)]
-    self.decoder_input = ([tf.zeros_like(x[0], dtype=np.int32, name="GO")] + x[:-1])
-    #self.neural_net  = mlp.MultilayerPerceptron(self.x, self.input_size, self.output_size).getNetwork()
-    cell = rnn_cell.BasicLSTMCell
-    cell = rnn_cell.MultiRNNCell([cell] * num_layers)
-    decoder_output, decoder_state = seq2seq.basic_rnn_seq2seq(x, decoder_input, cell)
-    self.cost        = seq2seq.sequence_loss(decoder_output, y, weights)#tf.nn.l2_loss(self.neural_net - self.y)
-    self.optimizer   = tf.train.AdamOptimizer(learning_rate=self.learning_rate).minimize(self.cost)
-    self.init        = tf.initialize_all_variables()
-    self.saver       = saver = tf.train.Saver()
+        # Network
+        self.input_size  = self.dataset.get_input_size()
+        self.output_size = self.dataset.get_output_size()
+        self.x           = [tf.placeholder("float", [None, self.input_size]) for t in range(seq_length)]
+        self.y           = [tf.placeholder("float", [None, self.output_size]) for t in range(seq_length)]
+        self.decoder_input = ([tf.zeros_like(x[0], dtype=np.int32, name="GO")] + x[:-1])
+        #self.neural_net  = mlp.MultilayerPerceptron(self.x, self.input_size, self.output_size).getNetwork()
+        cell = rnn_cell.BasicLSTMCell
+        cell = rnn_cell.MultiRNNCell([cell] * num_layers)
+        decoder_output, decoder_state = seq2seq.basic_rnn_seq2seq(x, decoder_input, cell)
+        self.cost        = seq2seq.sequence_loss(decoder_output, y, weights)#tf.nn.l2_loss(self.neural_net - self.y)
+        self.optimizer   = tf.train.AdamOptimizer(learning_rate=self.learning_rate).minimize(self.cost)
+        self.init        = tf.initialize_all_variables()
+        self.saver       = saver = tf.train.Saver()
 
-  def train(self):
-    with tf.Session() as sess:
-        if os.path.exists(os.getcwd()+"/tmp/model.ckpt"):
-          self.saver.restore(sess, "./tmp/model.ckpt")
-        else:
-          sess.run(self.init)
+    def train(self):
+        with tf.Session() as sess:
+            if self.chkpt and os.path.exists(self.chkpt):
+                print("restoring model from checkpoint: {}".format(self.chkpt))
+                self.saver.restore(sess, self.chkpt)
+            else:
+                sess.run(self.init)
+            # train
+            for epoch in range(self.training_epochs):
+                 avg_cost = 0.0
+                 total_batch = int(self.data_size/self.batch_size)
 
-        # train
-        for epoch in range(self.training_epochs):
-            avg_cost = 0.0
-            total_batch = int(self.data_size/self.batch_size)
+                 for i in range(total_batch):
+                     batch_x, batch_y = self.dataset.get_batch()
 
-            for i in range(total_batch):
-              batch_x, batch_y = self.dataset.get_batch()
+                     # backprop
+                     _, c = sess.run([self.optimizer, self.cost], feed_dict={self.x: batch_x, self.y: batch_y})
+                     avg_cost += c / total_batch
 
-              # backprop
-              _, c = sess.run([self.optimizer, self.cost], feed_dict={self.x: batch_x, self.y: batch_y})
-              avg_cost += c / total_batch
-
-            if epoch % self.display_step == 0:
-                print("epoch:", '%04d' % (epoch+1), "cost=",
-                        "{:.9f}".format(avg_cost))
-            if avg_cost < self.max_cost:
-                break
-            if (epoch+1) % self.save_interval == 0:
-              save_path = self.saver.save(sess, "./tmp/model.ckpt")
-              print("network saved in %s" % save_path)
-        print("optimized...")
-
-  def test(self):
-    with tf.Session() as sess:
-      if os.path.exists(os.getcwd()+"/tmp/model.ckpt"):
-          self.saver.restore(sess, "./tmp/model.ckpt")
-
-      accuracy = tf.reduce_mean(tf.cast(np.absolute(self.neural_net - self.y) < self.delta, tf.float32))
-      test_x, test_y = self.dataset.get_batch()
-      print('nn_y:\n',sess.run(self.neural_net, feed_dict={self.x: test_x}))
-      print('test_y:\n',test_y)
-      print("accuracy:", sess.run(accuracy, feed_dict={self.x: test_x, self.y: test_y}))
-
-  def getNN(self):
-    return self.neural_net
-
-## should load the save file and return the network
-def load(fname):
-    with tf.Session() as sess:
-      if os.path.exists(os.getcwd()+"/tmp/model.ckpt"):
-          self.saver.restore(sess, "./tmp/model.ckpt")
+                 if epoch % self.display_step == 0:
+                     print("epoch:", '%04d' % (epoch+1), "cost=", "{:.9f}".format(avg_cost))
+                 if avg_cost < self.max_cost:
+                     break
+                 if self.save_interval != -1 and  (epoch+1) % self.save_interval == 0:
+                     save_path = self.saver.save(sess, self.chkpt)
+                     print("network saved in %s" % save_path)
+            print("optimized...")
+            if self.chkpt:
+                 save_path = self.saver.save(sess, self.chkpt)
+                 print("network saved in %s" % save_path)
 
 
-def forward_pass(neural_net, inputs, tf_placeholder):
-    """ Takes a neural net, and returns the output of a single forward pass.
+    def forward_pass(self, inputs):
+        """ Takes a neural net, and returns the output of a single forward pass.
 
-    Args:
-        neural_net: a matmul tensor representing the weights of the network.
-        inputs: inputs to the neural net.
-        tf_placeholder: TensorFlow placeholder representing the input
-            dimensions.
-    """
-    with tf.Session() as sess:
-        sess.run(tf.initialize_all_variables())
-        feed_dict = {tf_placeholder: inputs}
-        result = sess.run([neural_net], feed_dict=feed_dict)
-    return result[0][0]
+        Args:
+            inputs: inputs to the neural net.
+        """
+        with tf.Session() as sess:
+            if self.chkpt and os.path.exists(self.chkpt):
+                print("Using model from checkpoint for forward pass: {}".format(self.chkpt))
+                self.saver.restore(sess, self.chkpt)
+            else:
+                sess.run(self.init)
+            feed_dict = {self.x: inputs}
+            result = sess.run([self.neural_net], feed_dict=feed_dict)
+        return result[0][0]
 
