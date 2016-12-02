@@ -19,16 +19,19 @@ from tensorflow.python.ops import rnn, rnn_cell, seq2seq
 
 class Trainer:
     def __init__(self, feature_iters, output_size, label, data_size=500000,
-                 max_cost=-1, learning_rate=0.01, training_epochs=20, chkpt=None,
-                 batch_size=100, display_step=1, delta=0.0035, save_interval=-1):
+                 max_cost=-1, learning_rate=0.05, training_epochs=20, chkpt=None,
+                 batch_size=100, memory_dim=100, display_step=1, delta=0.0035, save_interval=-1):
         # training parameters
         self.seq_length      = 10 # something
-        self.vocab           = 10 # 0-9 
+        self.vocab_size      = 10 # 0-9 
+        self.depth           = 2
+        self.lstm_size       = 256
         self.data_size       = data_size
         self.max_cost        = max_cost
         self.learning_rate   = learning_rate
         self.training_epochs = training_epochs
         self.batch_size      = batch_size
+        self.memory_dim      = memory_dim
         self.display_step    = display_step
         self.delta           = delta
         self.save_interval   = save_interval
@@ -41,19 +44,27 @@ class Trainer:
                 batch_size=batch_size)
 
         # Network
-        self.input_size  = self.dataset.get_input_size()
-        self.output_size = self.dataset.get_output_size()
-        self.x           = [tf.placeholder("float", [None, self.input_size]) for t in range(seq_length)]
-        self.y           = [tf.placeholder("float", [None, self.output_size]) for t in range(seq_length)]
-        self.decoder_input = ([tf.zeros_like(x[0], dtype=np.int32, name="GO")] + x[:-1])
-        #self.neural_net  = mlp.MultilayerPerceptron(self.x, self.input_size, self.output_size).getNetwork()
-        cell = rnn_cell.BasicLSTMCell
-        cell = rnn_cell.MultiRNNCell([cell] * num_layers)
-        decoder_output, decoder_state = seq2seq.basic_rnn_seq2seq(x, decoder_input, cell)
-        self.cost        = seq2seq.sequence_loss(decoder_output, y, weights)#tf.nn.l2_loss(self.neural_net - self.y)
-        self.optimizer   = tf.train.AdamOptimizer(learning_rate=self.learning_rate).minimize(self.cost)
-        self.init        = tf.initialize_all_variables()
-        self.saver       = saver = tf.train.Saver()
+        self.input_size     = self.dataset.get_input_size()
+        self.output_size    = self.dataset.get_output_size()
+        self.x              = [tf.placeholder(tf.int32, shape=[None, self.lstm_size], name="input_%i"%t) for t in range(self.seq_length)]
+        self.y              = [tf.placeholder(tf.int32, shape=[None, self.lstm_size], name="label_%i"%t) for t in range(self.seq_length)]
+        self.weights        = [tf.ones_like(l, dtype=tf.float32) for l in self.y]
+        self.decoder_input  = [tf.placeholder(tf.float32, shape=[None, self.lstm_size], name="decoder{0}".format(i)) for i in range(self.seq_length)]
+        self.memory         = tf.zeros((self.batch_size, memory_dim))
+        self.lstm_cell      = rnn_cell.BasicLSTMCell(self.lstm_size, state_is_tuple=True)
+        self.multi_cell     = rnn_cell.MultiRNNCell([self.lstm_cell] * self.depth, state_is_tuple=True)
+        (state, output)     = seq2seq.basic_rnn_seq2seq(self.x, self.decoder_input, self.multi_cell)
+        self.decoder_output = state
+        self.decoder_state  = output
+        self.cost           = seq2seq.sequence_loss(self.decoder_output, self.y, self.weights, self.vocab_size)
+        self.optimizer      = tf.train.AdamOptimizer(learning_rate=self.learning_rate).minimize(self.cost)
+
+        logdir = tempfile.mkdtemp()
+        print(logdir)
+        summary_writer = tf.train.SummaryWriter(logdir, sess.graph_def)
+        
+        self.init          = tf.initialize_all_variables()
+        self.saver         = saver = tf.train.Saver()
 
     def train(self):
         with tf.Session() as sess:
