@@ -48,6 +48,10 @@ class DataHandler:
 
         return (features, labels)
 
+    def get_sample(self):
+        sample = self.sample()
+        return (sample, self._label(*sample))
+
     def get_input_size(self):
         return len(self.feature_iters)
 
